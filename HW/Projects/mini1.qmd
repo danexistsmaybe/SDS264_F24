@@ -1,0 +1,111 @@
+---
+title: "Static Maps"
+sidebar: false
+format:
+  pdf: default
+editor_options: 
+  chunk_output_type: console
+author: "Daniel Evans"
+  
+---
+
+
+
+
+```{r,message=FALSE}
+# data
+library(tidyverse)
+setwd("~")
+PLACES <- read_csv("R/SDS264_F24/HW/Projects/Data/PLACES.csv")
+PLACES <- PLACES |>
+  rename(State = StateDesc)
+
+library(maps)
+states <- map_data("state")
+head(states)
+```
+
+
+# First Map: Prevalence of Depression Across the United States
+
+
+```{r}
+# First
+
+# summary by state
+PLACES_states <- PLACES |>
+  mutate(State = tolower(State)) |>
+  group_by(State) |>
+  summarize(
+    continuous = mean(DEPRESSION_CrudePrev), 
+    other = mean(SLEEP_CrudePrev)
+  )
+
+# join
+chimera <- states |>
+  left_join(PLACES_states, by = c("region" = "State"))
+
+# plot
+chimera |>
+  ggplot(aes(x = long, y = lat, group = group)) +
+    geom_polygon(aes(fill = continuous), color = "#222200") +
+    coord_map() +  
+    theme_void() +  
+    scale_fill_viridis_c(option = "E") +
+    theme(panel.background = element_rect(fill = "beige")) +
+    labs(
+      title = "Average Prevalence of Depression by State",
+      fill = "Mean Prevalence of Depression",
+      caption = "Source: CDC's PLACES Census Tract Data 2024 Release\nhttps://data.cdc.gov/500-Cities-Places/PLACES-Census-Tract-Data-GIS-Friendly-Format-2024-/yjkw-uj5s"
+    )
+```
+
+
+**Alt-Text Description:**
+This is a choropleth map or plot of the United States. Each state is drawn out and colored according to its average prevalence of depression, which ranges from 16 to 29 percent. The states with the lowest rates of depression appear to be Nebraska and New Jersey, while the highest prevalence of depression occurs in Tennessee and West Virginia. In general, the pattern of prevalence of depression does not seem to be in a relationship with political trends, rural versus urban dynamics, nor coastal versus mainland geographical locations. 
+
+
+
+
+
+# Second Map: Prevalence of Lack of Sleep Across the United States
+
+
+```{r}
+# First
+AVG <- mean(PLACES_states$other)
+
+chimera <- chimera |>
+  mutate(categorical = ifelse(other>AVG, "More Than Average", "Less Than Average"))
+
+
+# plot
+chimera |>
+  ggplot(aes(x = long, y = lat, group = group)) +
+    geom_polygon(aes(fill = fct(categorical)), color = "#353535") +
+    coord_map() +  
+    theme_void() +  
+    scale_fill_viridis_d(option = "F") +
+    theme(panel.background = element_rect(fill = "lavender")) +
+    labs(
+      title = "U.S. States With Higher Than Average Sleep Deprivation",
+      subtitle = "(where the average prevalence of sleep deprivation is 35.82%)",
+      fill = "Prevalence of Sleep Deprivation",
+      caption = "Source: CDC's PLACES Census Tract Data 2024 Release\nhttps://data.cdc.gov/500-Cities-Places/PLACES-Census-Tract-Data-GIS-Friendly-Format-2024-/yjkw-uj5s"
+    )
+```
+
+
+**Standard Description:**
+This plot highlights the geographical divide between the states with a higher prevalence of sleep deprivation than average and those with a lower prevalence. The prevalence for each state is calculated by averaging the percentage across its counties; by splitting the states into two categories, it becomes extremely clear that the Southeast as a geographical region has a higher prevalence of lack of sleep. This does not seem to follow the trends observed in the map of depression; however, it would be premature to assume that sleep deprivation and depression are not correlated, as there could be many other factors contributing to the trends observed in these maps.
+
+
+
+
+
+
+
+
+
+
+
