@@ -1,0 +1,308 @@
+---
+title: "R Tip of the Day"
+subtitle: "Working With Sounds"
+author: Dan E
+format: 
+  revealjs
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+
+library(tuneR)
+library(seewave)
+
+wave <- readWave("whale.wav")
+theme_set(theme_minimal())
+```
+
+
+## The Data in Question
+
+I like whales, so I'm using this waveform scraped from the Monterey Bay's youtube channel:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/5tRMqbPH_pk?si=T25mfkZtkOJLUNTv" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+<br>
+
+<audio controls>
+  <source src="whale.wav" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+
+# Using Waveform Data
+
+## The tuneR library
+
+::: {.fragment .fade-in}
+- Read and write audio files, particularly .wav but also .mp3, etc.
+:::
+::: {.fragment .fade-in}
+- Manipulate audio data
+:::
+::: {.fragment .fade-in}
+- Perform signal analysis 
+:::
+::: {.fragment .fade-in}
+- Work with midi conversions
+:::
+::: {.fragment .fade-in}
+- Synthesize waveforms from basic shapes like sine, square, etc.
+:::
+
+
+## Reading in our wave
+```{.r code-line-numbers="1|2"}
+wave <- readWave("whale.wav")
+class(wave)
+```
+::: {.fragment .fade-in}
+`[1] "Wave"`
+:::
+::: {.fragment .fade-in}
+```{.r}
+typeof(wave)
+```
+:::
+::: {.fragment .fade-in}
+`[1] "S4"`
+:::
+
+<br>
+
+::: {.fragment .fade-in}
+### What does this mean?
+
+:::
+
+## Tangent: S4 Objects in R and OOP
+- Object oriented programming (OOP)
+
+::: {.fragment .fade-in}
+
+- S4 objects
+  - Define class with the `setClass()` function
+  - Instantiate with the `new()` function
+    - Both of these take the class name as a string!!
+  - **Access attributes with the `@` operator **
+  - Still immutable, so changing them implies a complete rewrite
+
+:::
+
+## Using the Wave class
+Digital sound waves are stored as a series of amplitudes, called *samples*, the combination of which estimates an analog wave
+
+::: {.fragment .fade-in}
+![](diganal.jpg){ width=40% }
+:::
+
+::: {.fragment .fade-in}
+They are typically stored in one, two, or more *channels*, which allow for panning and surround sound.
+:::
+
+## Using the Wave class
+We can access information about our wave using various attributes of the Wave class
+```{.r code-line-numbers="1-2|3"}
+left_samples <- wave@left
+right_samples <- wave@right
+sample_rate <- wave@samp.rate # often 44100
+```
+
+:::
+
+# Looking at Waveform Data
+
+## Visualizing with ggplot
+```{.r code-line-numbers="1|2|3|4-5"}
+tibble(amp = wave@left) |>
+  mutate(t = row_number()/wave@samp.rate) |>
+  slice(seq(1, n(), by = 2)) |>
+  ggplot(aes(x = t, y = amp)) +
+    geom_line()
+```
+
+```{r}
+library(gridExtra)
+L <- tibble(amp = wave@left) |>
+  mutate(t = row_number()/wave@samp.rate) |>
+  slice(seq(1, n(), by = 100)) |>
+  ggplot(aes(x = t, y = amp)) +
+    geom_line()
+R <- tibble(amp = wave@left) |>
+  mutate(t = row_number()/wave@samp.rate) |>
+  slice(seq(1, n(), by = 10000)) |>
+  ggplot(aes(x = t, y = amp)) +
+    geom_line()
+grid.arrange(L, R, ncol = 2)
+```
+
+## Example of Normalization with tuneR
+Pay attention to the y axis, not the gradient!
+```{.r}
+norm_wave <- normalize(wave)
+```
+
+```{r}
+tibble(amp = normalize(wave)@left) |>
+  mutate(t = row_number()/wave@samp.rate) |>
+  slice(seq(1, n(), by = 100)) |>
+  ggplot(aes(x = t, y = amp, color = t)) +
+    geom_line() +
+    scale_color_viridis_c(option = "D")
+```
+
+
+
+## Visualizing with seewave
+Often, the wave alone does not tell us what we want to know about the sound. The `seewave` library offers many easy ways to visualize other aspects of the data.
+
+## Visualizing with seewave 1
+```{.r}
+spectro(normalize(wave), channel = 1, ovlp = 75)
+```
+
+```{r}
+spectro(normalize(wave), channel = 1, ovlp = 75)
+```
+
+## Visualizing with seewave 2
+```{.r}
+spectro(wave, channel = 1, ovlp = 99, scale = TRUE, flim = c(.05, .4), tlim = c(42, 43))
+```
+
+```{r}
+spectro(wave, channel = 1, ovlp = 25, scale = TRUE, flim = c(.1, .4), tlim = c(42, 43))
+```
+
+## Visualizing with seewave 3
+```{.r}
+spectro(wave, channel = 1, ovlp = 99, scale = TRUE, flim = c(1, 2), tlim = c(42, 43))
+```
+
+```{r}
+spectro(wave, channel = 1, ovlp = 75, scale = TRUE, flim = c(1, 2), tlim = c(42, 43))
+```
+
+## Why don't we just do it ourselves?
+
+::: {.fragment .fade-in}
+Fourier Transform (continuous):
+$$F(\omega)=\int_{-\infty}^{\infty} f(t)e^{-i\omega t} dt$$
+:::
+
+::: {.fragment .fade-in}
+Fourier Transform (discrete):
+$$F(k)=\sum_{n=0}^{N-1} f(n)e^{-i\omega_k n}$$
+:::
+
+## Fun with synthesis
+Let's end by making a fun sound!
+
+## Fun with synthesis
+Start by creating a sin wave:
+```{.r code-line-numbers="1|3-7|9"}
+S <- sine(freq = 261.63, duration = 4*44100, from = 0, samp.rate = 44100, bit = 32, pcm = TRUE)
+
+tibble(amp = S@left[0:500]) |>
+  mutate(t = row_number()/44100) |>
+  ggplot(aes(x = t, y = amp, color = t)) +
+    geom_line() +
+    scale_color_viridis_c(option = "E")
+
+writeWave(S, "sine.wav")
+```
+
+```{r}
+S <- sine(freq = 261.63, duration = 4*44100, from = 0, samp.rate = 44100, bit = 32, pcm = TRUE)
+
+tibble(amp = S@left[0:500]) |>
+  mutate(t = row_number()/44100) |>
+  ggplot(aes(x = t, y = amp, color = t)) +
+    geom_line() +
+    scale_color_viridis_c(option = "E")
+
+writeWave(S, "sine.wav")
+```
+
+## Fun with synthesis
+Here's what it sounds like:
+
+<audio controls>
+  <source src="sine.wav" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+It's a C!
+
+## Fun with synthesis
+Now let's add a saw wave and a square:
+```{.r code-line-numbers="1|2"}
+Saw <- sawtooth(freq = 329.63, duration = 4*44100, from = 0, samp.rate = 44100, bit = 32, pcm = TRUE)
+Square <- square(freq = 392, duration = 4*44100, from = 0, samp.rate = 44100, bit = 32, pcm = TRUE)
+```
+
+```{r}
+Saw <- sawtooth(freq = 329.63, duration = 4*44100, from = 1*44100, samp.rate = 44100, bit = 32, pcm = TRUE)
+Square <- square(freq = 392, duration = 4*44100, from = 2*44100, samp.rate = 44100, bit = 32, pcm = TRUE)
+
+tibble(amp1 = Saw@left[1:500], amp2 = Square@left[1:500]) |>
+  mutate(t = row_number()/44100) |>
+  ggplot(aes(x = t, color = t)) +
+    geom_line(aes(y = amp1)) +
+    geom_line(aes(y = amp2)) +
+    scale_color_viridis_c(option = "F")
+```
+
+
+## Fun with synthesis
+Finally, some random noise:
+```{.r code-line-numbers="1"}
+Noise <- noise(kind = "pink", duration = 4*44100, samp.rate = 44100, bit = 32, pcm = TRUE)
+```
+
+```{r}
+Noise <- noise(kind = "pink", duration = 4*44100, samp.rate = 44100, bit = 32, pcm = TRUE)
+
+tibble(amp = Noise@left[0:500]) |>
+  mutate(t = row_number()/44100) |>
+  ggplot(aes(x = t, y = amp)) +
+    geom_line( color="hotpink") 
+
+```
+
+## Fun with synthesis
+tuneR lets us sum the waves with ease:
+```{.r}
+finalwave <- S + Saw + Square + Noise
+writeWave(normalize(finalwave, "32"), "chord.wav")
+```
+
+Here's what it looks like:
+
+::: {.fragment .fade-in}
+
+```{r}
+finalwave <- S + Saw + Square + Noise
+writeWave(normalize(finalwave, "32"), "chord.wav")
+
+tibble(amp = finalwave@left[0:500]) |>
+  mutate(t = row_number()/44100) |>
+  ggplot(aes(x = t, y = amp)) +
+    geom_line() 
+```
+
+:::
+
+## Final Product
+
+<audio controls>
+  <source src="chord.wav" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+
+# Thanks for Listening!
